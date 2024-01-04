@@ -15,6 +15,30 @@
 
 ;; PACKAGES
 
+(use-package multiple-cursors
+    :bind (("C-S-c C-S-c" . mc/edit-lines)
+           ("C->" . mc/mark-next-like-this)
+           ("C-<" . mc/mark-previous-like-this)
+           ("C-c C-<" . mc/mark-all-like-this)))
+
+(use-package char-fold
+  :custom
+  (char-fold-symmetric t)
+  (search-default-mode #'char-fold-to-regexp))
+
+(use-package reverse-im
+  :ensure t ; install `reverse-im' using package.el
+  :demand t ; always load it
+  :after char-fold ; but only after `char-fold' is loaded
+  :bind
+  ("M-T" . reverse-im-translate-word) ; fix a word in wrong layout
+  :custom
+  (reverse-im-char-fold t) ; use lax matching
+  (reverse-im-read-char-advice-function #'reverse-im-read-char-include)
+  (reverse-im-input-methods '("russian-computer")) ; translate these methods
+  :config
+  (reverse-im-mode t)) ; turn the mode on
+
 (use-package neotree
     :bind ([f8] . neotree-toggle)
     :init (setq neo-theme 'ascii
@@ -36,7 +60,6 @@
 
 (use-package helm
     :init (progn
-            (require 'helm-config)
             (setq helm-candidate-number-limit 100
                   helm-idle-delay 0.0
                   helm-input-idle-delay 0.01
@@ -71,21 +94,33 @@
 (use-package helm-projectile
  :config
  (helm-projectile-on))
- 
+
+(use-package cmake-mode)
 (use-package qml-mode)
 (use-package rust-mode)
  
-(use-package lsp-mode
-    :commands lsp
-    :hook ((c-mode . lsp-deferred)
-           (c++-mode . lsp-deferred)
-           (rust-mode . lsp-deferred))
-    :config
-    (setq lsp-keymap-prefix "C-c l")
-    (setq lsp-diagnostic-package :none)
-    (setq lsp-prefer-flymake nil)
-    (setq lsp-enable-file-watchers nil)
-    (setq lsp-clients-clangd-args '("--completion-style=detailed" "--header-insertion=never")))
+;; (use-package lsp-mode
+;;     :commands lsp
+;;     :hook ((c-mode . lsp-deferred)
+;;            (c++-mode . lsp-deferred)
+;;            (rust-mode . lsp-deferred))
+;;     :config
+;;     (setq lsp-keymap-prefix "C-c l")
+;;     (setq lsp-diagnostic-package :none)
+;;     (setq lsp-prefer-flymake nil)
+;;     (setq lsp-enable-file-watchers nil)
+;;     (setq lsp-clients-clangd-args '("--completion-style=detailed")))
+
+(use-package eglot)
+(add-hook 'eglot-managed-mode-hook (lambda () (eglot-inlay-hints-mode -1)))
+(with-eval-after-load 'eglot
+  (add-to-list 'eglot-server-programs
+               '(c++-mode . ("clangd" "--completion-style=detailed"))))
+(with-eval-after-load 'eglot
+  (add-to-list 'eglot-server-programs
+               '(c-mode . ("clangd" "--completion-style=detailed"))))
+(add-hook 'c++-mode-hook 'eglot-ensure)
+(add-hook 'c-mode-hook 'eglot-ensure)
 
 (use-package yasnippet
     :hook (after-init . yas-global-mode))
@@ -118,10 +153,13 @@
 (use-package rainbow-delimiters
     :hook (prog-mode . rainbow-delimiters-mode))
 
+(use-package expand-region
+    :bind ("C-=" . er/expand-region))
+
 (use-package nyan-mode
     :config (nyan-mode))
 
-(use-package modus-operandi-theme
+(use-package modus-themes
     :config (load-theme 'modus-operandi t))
 
 ;; --------------------------------------------------------
@@ -134,32 +172,10 @@
     (fundamental-mode)))
 (add-hook 'find-file-hook 'my-find-file-check-make-large-file-read-only-hook)
 
-(defun reverse-input-method (input-method)
-  "Build the reverse mapping of single letters from INPUT-METHOD."
-  (interactive
-   (list (read-input-method-name "Use input method (default current): ")))
-  (if (and input-method (symbolp input-method))
-      (setq input-method (symbol-name input-method)))
-  (let ((current current-input-method)
-        (modifiers '(nil (control) (meta) (control meta))))
-    (when input-method
-      (activate-input-method input-method))
-    (when (and current-input-method quail-keyboard-layout)
-      (dolist (map (cdr (quail-map)))
-        (let* ((to (car map))
-               (from (quail-get-translation
-                      (cadr map) (char-to-string to) 1)))
-          (when (and (characterp from) (characterp to))
-            (dolist (mod modifiers)
-              (define-key local-function-key-map
-                (vector (append mod (list from)))
-                (vector (append mod (list to)))))))))
-    (when input-method
-      (activate-input-method current))))
-(reverse-input-method 'russian-computer)
-
 (setq lisp-indent-function  'common-lisp-indent-function)
 (add-hook 'c-mode-hook (lambda () (c-toggle-comment-style -1)))
+
+;(setq-default cursor-type 'bar)
 
 (setq inhibit-splash-screen t)
 (setq inhibit-startup-message t)
@@ -174,7 +190,6 @@
 (scroll-bar-mode -1)
 (blink-cursor-mode -1)
 (column-number-mode t)
-(global-display-line-numbers-mode t)
 (size-indication-mode t)
 (global-auto-revert-mode t)
 (global-hl-line-mode +1)
